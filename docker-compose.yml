@@ -1,0 +1,28 @@
+# docker-compose.yml cho Shopee Rating Prediction
+# Chay: docker-compose up
+# Truy cap: http://localhost:8501
+
+services:
+  shopee-rating-prediction:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: shopee-rating-prediction:latest
+    container_name: shopee-rating-prediction-demo
+    ports:
+      - "8501:8501"
+    volumes:
+      # Mount models de update model ma khong can rebuild image
+      - ./models:/app/models
+      # Mount reports neu can xem report tu host
+      - ./reports:/app/reports
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONIOENCODING=utf-8
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
