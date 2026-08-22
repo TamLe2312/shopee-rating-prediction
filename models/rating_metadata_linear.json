@@ -1,0 +1,25 @@
+{
+    "model_type": "LinearRegression",
+    "task": "regression",
+    "target": "Rating (1-5)",
+    "mse": 13.550036584359495,
+    "rmse": 3.6810374331646636,
+    "mae": 2.778922163774398,
+    "r2": -5.18258769485738,
+    "acc_within_0_5": 0.3225963884821864,
+    "acc_within_1": 0.511469009272816,
+    "cv_r2_mean": -1.5798199474873211,
+    "cv_r2_std": 0.21512378478623254,
+    "n_train": 18437,
+    "n_test": 2049,
+    "vocab_size": 25958,
+    "config": {
+        "max_features": 30000,
+        "ngram_range": [
+            1,
+            2
+        ],
+        "min_df": 3,
+        "sublinear_tf": false
+    }
+}
