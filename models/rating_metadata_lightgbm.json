@@ -2,17 +2,17 @@
     "model_type": "LGBMRegressor",
     "task": "regression",
     "target": "Rating (1-5)",
-    "mse": 0.9519030422819322,
-    "rmse": 0.9756551861605268,
-    "mae": 0.7681732586144535,
-    "r2": 0.5656672954888725,
-    "acc_within_0_5": 0.41337237676915567,
-    "acc_within_1": 0.7052220595412396,
+    "mse": 0.9503245572148246,
+    "rmse": 0.9748459146012894,
+    "mae": 0.7662825935166382,
+    "r2": 0.5663875239762023,
+    "acc_within_0_5": 0.41874084919472915,
+    "acc_within_1": 0.7115666178623719,
     "cv_r2_mean": null,
     "cv_r2_std": null,
     "n_train": 18437,
     "n_test": 2049,
-    "vocab_size": 25958,
+    "vocab_size": 5000,
     "config": {
         "max_features": 30000,
         "ngram_range": [
@@ -20,7 +20,7 @@
             2
         ],
         "min_df": 3,
-        "n_estimators": 500,
+        "n_estimators": 588,
         "learning_rate": 0.05,
         "num_leaves": 31
     }

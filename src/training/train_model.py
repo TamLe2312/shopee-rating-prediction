@@ -17,9 +17,11 @@ MODEL_DIR = os.path.join(PROJECT_ROOT, "models")
 
 TFIDF_CONFIG = {
     "ngram_range": (1, 2),
-    "max_features": 30000,
-    "min_df": 3,
-    "sublinear_tf": False
+    "max_features_linear": 5000,
+    "min_df_linear": 5,
+    "max_features_lightgbm": 30000,
+    "min_df_lightgbm": 3,
+    "sublinear_tf": True
 }
 
 
@@ -62,15 +64,16 @@ def main():
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=RANDOM_STATE)
 
-    print("\nĐang Vector hóa dữ liệu (TF-IDF)...")
-    vectorizer = TfidfVectorizer(
+    print("\nĐang Vector hóa dữ liệu cho Linear...")
+    vec_linear = TfidfVectorizer(
         ngram_range=TFIDF_CONFIG["ngram_range"],
-        max_features=TFIDF_CONFIG["max_features"],
-        min_df=TFIDF_CONFIG["min_df"]
+        max_features=TFIDF_CONFIG["max_features_linear"],
+        min_df=TFIDF_CONFIG["min_df_linear"],
+        sublinear_tf=TFIDF_CONFIG["sublinear_tf"]
     )
-    X_train_tfidf = vectorizer.fit_transform(X_train)
-    X_test_tfidf = vectorizer.transform(X_test)
-    vocab_size = len(vectorizer.vocabulary_)
+    X_train_linear = vec_linear.fit_transform(X_train)
+    X_test_linear = vec_linear.transform(X_test)
+    vocab_size = len(vec_linear.vocabulary_)
     print(f"Kích thước từ điển (Vocab size): {vocab_size}")
 
     print("\n--- ĐÁNH GIÁ & HUẤN LUYỆN LINEAR REGRESSION ---")
@@ -80,7 +83,7 @@ def main():
 
     scores = cross_val_score(
         linear_model,
-        X_train_tfidf, y_train,
+        X_train_linear, y_train,
         cv=kf, scoring="r2", n_jobs=-1,
     )
     cv_mean = float(scores.mean())
@@ -88,26 +91,32 @@ def main():
 
     print(f"  Cross-Validation R²: {cv_mean:<8.4f} ± {cv_std:<8.4f}")
 
-    linear_model.fit(X_train_tfidf, y_train)
-    y_pred_linear = linear_model.predict(X_test_tfidf)
+    linear_model.fit(X_train_linear, y_train)
+    y_pred_linear = linear_model.predict(X_test_linear)
     metrics_linear = evaluate(y_test, y_pred_linear, "LINEAR REGRESSION (TEST SET)")
 
     print("\n--- HUẤN LUYỆN MÔ HÌNH LIGHTGBM ---")
+    print("Vector hóa cho LightGBM...")
+    vec_lgbm = TfidfVectorizer(ngram_range=(1, 2), max_features=TFIDF_CONFIG["max_features_lightgbm"],
+                               min_df=TFIDF_CONFIG["min_df_lightgbm"])
+    X_train_lgbm = vec_lgbm.fit_transform(X_train)
+    X_test_lgbm = vec_lgbm.transform(X_test)
+
     lgbm_model = LGBMRegressor(
-        n_estimators=500,
+        n_estimators=588,
         learning_rate=0.05,
         num_leaves=31,
         random_state=RANDOM_STATE,
         n_jobs=-1
     )
 
-    lgbm_model.fit(X_train_tfidf, y_train)
-    y_pred_lgbm = lgbm_model.predict(X_test_tfidf)
+    lgbm_model.fit(X_train_lgbm, y_train)
+    y_pred_lgbm = lgbm_model.predict(X_test_lgbm)
     metrics_lgbm = evaluate(y_test, y_pred_lgbm, "LIGHTGBM (TEST SET)")
 
     print("\nĐang lưu các file mô hình và cấu hình...")
-
-    joblib.dump(vectorizer, os.path.join(MODEL_DIR, "rating_vectorizer.pkl"))
+    joblib.dump(vec_linear, os.path.join(MODEL_DIR, "rating_vectorizer_linear.pkl"))
+    joblib.dump(vec_lgbm, os.path.join(MODEL_DIR, "rating_vectorizer_lightgbm.pkl"))
 
     # Lưu Linear Regression
     joblib.dump(linear_model, os.path.join(MODEL_DIR, "rating_model_linear.pkl"))
@@ -127,9 +136,9 @@ def main():
         "n_test": len(X_test),
         "vocab_size": int(vocab_size),
         "config": {
-            "max_features": TFIDF_CONFIG["max_features"],
+            "max_features": TFIDF_CONFIG["max_features_linear"],
             "ngram_range": list(TFIDF_CONFIG["ngram_range"]),
-            "min_df": TFIDF_CONFIG["min_df"],
+            "min_df": TFIDF_CONFIG["min_df_linear"],
             "sublinear_tf": TFIDF_CONFIG["sublinear_tf"]
         }
     }
@@ -154,9 +163,9 @@ def main():
         "n_test": len(X_test),
         "vocab_size": int(vocab_size),
         "config": {
-            "max_features": TFIDF_CONFIG["max_features"],
+            "max_features": TFIDF_CONFIG["max_features_lightgbm"],
             "ngram_range": list(TFIDF_CONFIG["ngram_range"]),
-            "min_df": TFIDF_CONFIG["min_df"],
+            "min_df": TFIDF_CONFIG["min_df_lightgbm"],
             "n_estimators": lgbm_model.n_estimators,
             "learning_rate": lgbm_model.learning_rate,
             "num_leaves": lgbm_model.num_leaves,

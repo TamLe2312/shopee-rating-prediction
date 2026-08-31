@@ -2,24 +2,24 @@
     "model_type": "LinearRegression",
     "task": "regression",
     "target": "Rating (1-5)",
-    "mse": 13.550036584359495,
-    "rmse": 3.6810374331646636,
-    "mae": 2.778922163774398,
-    "r2": -5.18258769485738,
-    "acc_within_0_5": 0.3225963884821864,
-    "acc_within_1": 0.511469009272816,
-    "cv_r2_mean": -1.5798199474873211,
-    "cv_r2_std": 0.21512378478623254,
+    "mse": 1.1714511093890712,
+    "rmse": 1.0823359503356946,
+    "mae": 0.8461927623458761,
+    "r2": 0.4654922760580683,
+    "acc_within_0_5": 0.40995607613469986,
+    "acc_within_1": 0.6866764275256223,
+    "cv_r2_mean": 0.36259159973261634,
+    "cv_r2_std": 0.0383288586699256,
     "n_train": 18437,
     "n_test": 2049,
-    "vocab_size": 25958,
+    "vocab_size": 5000,
     "config": {
-        "max_features": 30000,
+        "max_features": 5000,
         "ngram_range": [
             1,
             2
         ],
-        "min_df": 3,
-        "sublinear_tf": false
+        "min_df": 5,
+        "sublinear_tf": true
     }
 }
