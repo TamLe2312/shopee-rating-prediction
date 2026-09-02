@@ -13,7 +13,7 @@ Hệ thống được thiết kế theo kiến trúc **Microservices** và tri�
 ```text
 MinIO (Data Lake)
        ↓
-   FastAPI (AI Backend)
+FastAPI (AI Backend)
        ↕
 Streamlit (Frontend)
 ```
@@ -198,7 +198,7 @@ shopee_reviews_for_regression.csv
 Chạy script huấn luyện:
 
 ```bash
-python train.py
+python -m src.training.train_model.py
 ```
 
 Hệ thống sẽ tự động:
@@ -221,10 +221,12 @@ Ví dụ:
 
 ```text
 models/
-├── linear_regression.pkl
-├── lightgbm_model.pkl
-├── tfidf_vectorizer.pkl
-└── metrics.json
+├── rating_model_lightgbm.pkl
+├── rating_model_linear.pkl
+├── rating_vectorizer_lightgbm.pkl
+├── rating_vectorizer_linear.pkl
+└── rating_metadata_lightgbm.json
+└── rating_metadata_linear.json
 ```
 
 ---
