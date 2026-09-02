@@ -1,28 +1,45 @@
-# docker-compose.yml cho Shopee Rating Prediction
-# Chay: docker-compose up
-# Truy cap: http://localhost:8501
+version: '3.8'
 
 services:
-  shopee-rating-prediction:
+  # 1. KHO LƯU TRỮ MINIO
+  minio:
+    image: minio/minio:latest
+    container_name: shopee-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password123
+    volumes:
+      - ./minio_data:/data
+    command: server /data --console-address ":9001"
+
+  # 2. LÕI XỬ LÝ AI (FASTAPI)
+  backend:
     build:
       context: .
-      dockerfile: Dockerfile
-    image: shopee-rating-prediction:latest
-    container_name: shopee-rating-prediction-demo
+      dockerfile: Dockerfile.api
+    container_name: shopee-api
+    ports:
+      - "8000:8000"
+    depends_on:
+      - minio
+    environment:
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+
+  # 3. GIAO DIỆN NGƯỜI DÙNG (STREAMLIT)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    container_name: shopee-web
     ports:
       - "8501:8501"
-    volumes:
-      # Mount models de update model ma khong can rebuild image
-      - ./models:/app/models
-      # Mount reports neu can xem report tu host
-      - ./reports:/app/reports
+    depends_on:
+      - backend
     environment:
-      - PYTHONUNBUFFERED=1
-      - PYTHONIOENCODING=utf-8
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
+      # Gọi vào tên service 'backend' của mạng nội bộ Docker
+      - API_URL=${API_URL}

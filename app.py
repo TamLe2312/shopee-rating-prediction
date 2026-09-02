@@ -1,92 +1,58 @@
 """
-Streamlit Demo - Dự đoán rating Shopee bằng Ridge Regression / LightGBM
+Streamlit Frontend - Giao diện dự đoán rating Shopee (Gọi qua FastAPI)
 Chạy: streamlit run app.py
 """
 import os
-import sys
-import json
-import joblib
-import numpy as np
-import pandas as pd
 import streamlit as st
+import pandas as pd
+import requests
 import matplotlib.pyplot as plt
 
-sys.path.insert(0, os.path.dirname(__file__))
-from src.preprocessing.text import preprocess_text
+# ==========================
+# CONFIG & THEME
+# ==========================
+# Địa chỉ của FastAPI Backend
+API_URL = os.getenv("API_URL", "http://localhost:8000/predict")
 
-# ==========================
-# CONFIG
-# ==========================
+SHOPEE_ORANGE = "#EE4D2D"
+SHOPEE_ORANGE_LIGHT = "#FF7337"
+SHOPEE_BG_LIGHT = "#FFF0EE"
+SHOPEE_TEXT_DARK = "#000000"
+SHOPEE_TEXT_MUTED = "#757575"
+
 st.set_page_config(
     page_title="Shopee Rating Predictor",
-    page_icon="⭐",
+    page_icon="🛍️",
     layout="centered",
-    initial_sidebar_state="expanded",  # Mở sidebar mặc định
+    initial_sidebar_state="expanded",
 )
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_DIR = os.path.join(BASE_DIR, "models")
+# Custom CSS for Shopee Theme
+st.markdown(f"""
+    <style>
+    :root {{ --primary-color: {SHOPEE_ORANGE}; }}
+    h1, h2, h3 {{ color: {SHOPEE_ORANGE} !important; }}
+    .stButton>button[data-baseweb="button"] {{
+        background-color: {SHOPEE_ORANGE}; color: white; border: none; border-radius: 4px; transition: 0.3s;
+    }}
+    .stButton>button[data-baseweb="button"]:hover {{
+        background-color: {SHOPEE_ORANGE_LIGHT}; color: white;
+    }}
+    .stTabs [data-baseweb="tab-list"] {{ gap: 24px; }}
+    .stTabs [data-baseweb="tab"] {{
+        height: 50px; white-space: pre-wrap; background-color: transparent; border-radius: 4px 4px 0px 0px; padding: 10px 0;
+    }}
+    .stTabs [aria-selected="true"] {{ color: {SHOPEE_ORANGE} !important; border-bottom-color: {SHOPEE_ORANGE} !important; }}
+    div[role="radiogroup"] label[data-baseweb="radio"] div:first-child {{ background-color: {SHOPEE_ORANGE} !important; }}
+    .stProgress > div > div > div > div {{ background-color: {SHOPEE_ORANGE} !important; }}
+    .streamlit-expanderHeader {{ color: {SHOPEE_ORANGE}; }}
+    </style>
+    """, unsafe_allow_html=True)
 
 
-@st.cache_resource
-def load_models():
-    """Load Vectorizer và cả 2 mô hình cùng lúc vào bộ nhớ tạm"""
-    # Load chung Vectorizer
-    vectorizer = joblib.load(os.path.join(MODEL_DIR, "rating_vectorizer.pkl"))
-
-    # Load Ridge
-    model_ridge = joblib.load(os.path.join(MODEL_DIR, "rating_model_ridge.pkl"))
-    with open(os.path.join(MODEL_DIR, "rating_metadata_ridge.json"), "r", encoding="utf-8") as f:
-        meta_ridge = json.load(f)
-
-    # Load LightGBM
-    model_lgbm = joblib.load(os.path.join(MODEL_DIR, "rating_model_lightgbm.pkl"))
-    with open(os.path.join(MODEL_DIR, "rating_metadata_lightgbm.json"), "r", encoding="utf-8") as f:
-        meta_lgbm = json.load(f)
-
-    return vectorizer, {"Ridge": model_ridge, "LightGBM": model_lgbm}, {"Ridge": meta_ridge, "LightGBM": meta_lgbm}
-
-
-def predict_rating(text, model, vectorizer, model_name):
-    processed = preprocess_text(text)
-    if not processed:
-        return None
-    X = vectorizer.transform([processed])
-
-    # Raw prediction (continuous)
-    raw_pred = float(model.predict(X)[0])
-    # Clip vào [1, 5] cho hợp lý
-    clipped = float(np.clip(raw_pred, 1, 5))
-
-    # Tính Top features dựa trên loại mô hình
-    feat_names = vectorizer.get_feature_names_out()
-    nonzero = X.toarray()[0].nonzero()[0]
-    contribs = []
-
-    if len(nonzero) > 0:
-        if model_name == "Ridge":
-            coef = model.coef_
-            contribs = sorted(
-                [(feat_names[i], coef[i] * X[0, i]) for i in nonzero],
-                key=lambda x: abs(x[1]), reverse=True,
-            )[:6]
-        elif model_name == "LightGBM":
-            # LightGBM không có coef_ (âm dương), chỉ có feature_importances_ (độ quan trọng >= 0)
-            importance = model.feature_importances_
-            contribs = sorted(
-                [(feat_names[i], importance[i] * X[0, i]) for i in nonzero],
-                key=lambda x: x[1], reverse=True,
-            )[:6]
-
-    return {
-        "raw_pred": raw_pred,
-        "clipped_pred": clipped,
-        "rounded": int(round(clipped)),
-        "processed": processed,
-        "top_features": contribs,
-    }
-
-
+# ==========================
+# HELPER FUNCTIONS
+# ==========================
 def render_stars(rating: float) -> str:
     full = int(rating)
     half = (rating - full) >= 0.5
@@ -99,232 +65,230 @@ def render_stars(rating: float) -> str:
 
 
 def rating_color(rating: float) -> str:
-    if rating >= 4: return "#2ca02c"  # green
-    if rating >= 3: return "#FFC72C"  # gold
-    if rating >= 2: return "#FF8C00"  # orange
-    return "#d62728"  # red
+    if rating >= 4: return "#00bfa5"
+    if rating >= 3: return "#ffc107"
+    if rating >= 2: return "#ff9800"
+    return "#ff5722"
 
 
 def rating_label(rating: float) -> str:
-    if rating >= 4.5: return "Rất tốt"
-    if rating >= 3.5: return "Tốt"
-    if rating >= 2.5: return "Trung bình"
-    if rating >= 1.5: return "Kém"
+    if rating >= 4.5: return "Tuyệt vời"
+    if rating >= 3.5: return "Hài lòng"
+    if rating >= 2.5: return "Bình thường"
+    if rating >= 1.5: return "Không hài lòng"
     return "Rất tệ"
 
 
 # ==========================
 # UI & APP LOGIC
 # ==========================
-try:
-    vectorizer, models, metas = load_models()
-except FileNotFoundError:
-    st.error("Chưa có model. Hãy chạy code train cả Ridge và LightGBM trước.")
-    st.stop()
 
-# ----- SIDEBAR (Chọn mô hình) -----
+# ----- SIDEBAR -----
 with st.sidebar:
-    st.title("⚙️ Cài đặt")
+    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Shopee.svg/3840px-Shopee.svg.png", width=150)
+    st.title("Cấu hình API")
     selected_model_name = st.radio(
-        "Chọn Mô Hình Dự Đoán:",
-        options=["Ridge", "LightGBM"],
+        "Gửi request yêu cầu mô hình:",
+        options=["Linear", "LightGBM"],
         index=0,
-        help="Chuyển đổi qua lại để xem sự khác biệt giữa thuật toán Tuyến tính và thuật toán dạng Cây."
+        help="Chọn mô hình mà Backend FastAPI sẽ sử dụng để dự đoán."
     )
 
-    st.markdown("---")
-    st.caption(
-        "🔍 **Mẹo:** Ridge giải thích từ khóa tốt hơn (Âm/Dương), trong khi LightGBM đôi khi dự đoán điểm số nhạy hơn.")
-
-# Lấy mô hình đang được active
-active_model = models[selected_model_name]
-active_meta = metas[selected_model_name]
-
 # ----- HEADER -----
-col1, col2, col3 = st.columns([3, 1, 1])
-with col1:
-    st.title(f"⭐ Dự đoán bằng {selected_model_name}")
-with col2:
-    st.metric("R² (Test)", f"{active_meta['r2']:.3f}")
-with col3:
-    st.metric("RMSE", f"{active_meta['rmse']:.3f}")
+st.title("Phân Tích Đánh Giá Bình Luận")
+st.caption(f"Yêu cầu dự đoán qua API bằng thuật toán **{selected_model_name}**.")
 
-st.caption(f"Đang sử dụng **{selected_model_name}** để dự đoán điểm đánh giá **1.0 → 5.0**.")
-
-tab1, tab2, tab3 = st.tabs(["🔍 Dự đoán", "📂 Hàng loạt", "ℹ️ Giới thiệu mô hình"])
+tab1, tab2, tab3 = st.tabs(["💬 Phân Tích Đơn", "📁 Phân Tích Hàng Loạt", "ℹ️ Cấu Trúc Hệ Thống"])
 
 # ============ TAB 1 - SINGLE PREDICTION ============
 with tab1:
     examples = {
-        "(Tự nhập)": "",
-        "VD 5★ — Rất tốt": "Sản phẩm cực tốt, đóng gói cẩn thận, ship nhanh, sẽ mua lại 💖",
-        "VD 4★ — Tốt": "Hàng ok, giao đúng mô tả, ship hơi chậm chút",
-        "VD 3★ — Trung bình": "Sản phẩm bình thường, không có gì nổi bật",
-        "VD 2★ — Kém": "Hàng dùng được, nhưng giao chậm và đóng gói cẩu thả",
-        "VD 1★ — Rất tệ": "Hàng giả, lừa đảo, shop bùng đơn, ko đáng tiền 😡",
-        "🔄 Phủ định (positive)": "Không có gì để chê, sản phẩm rất tốt",
-        "🔄 Phủ định (negative)": "Không đáng tiền, chất lượng kém",
-        "😍 Emoji nhiều": "Tốt 👍💯❤️🌟😍🔥",
-        "🗣 Slang tiếng Việt": "Shop ok, sp đẹp, ship nhanh, mn nên mua nha",
-        "⚖️ Mixed sentiment": "Chất lượng tốt nhưng giao hàng quá chậm và đóng gói xấu",
+        "Viết đánh giá của riêng bạn...": "",
+        "Đánh giá 5 sao": "Sản phẩm xịn xò, giao hàng hỏa tốc, shop tư vấn nhiệt tình 💖",
+        "Đánh giá 4 sao": "Chất lượng ổn áp so với tầm giá, nhưng hộp hơi móp",
+        "Đánh giá 3 sao": "Tạm được, không giống ảnh lắm nhưng vẫn dùng được",
+        "Đánh giá 2 sao": "Giao nhầm size, nhắn tin shop không rep nhanh",
+        "Đánh giá 1 sao": "Hàng pha ke, chất vải nóng, khuyên mọi người né gấp 😡",
     }
-    chosen = st.selectbox("Ví dụ:", list(examples.keys()), label_visibility="collapsed")
+    chosen = st.selectbox("Chọn mẫu đánh giá:", list(examples.keys()), label_visibility="collapsed")
     text = st.text_area(
-        "Bình luận",
-        value=examples[chosen],
-        height=100,
-        placeholder="Nhập bình luận đánh giá sản phẩm...",
-        label_visibility="collapsed",
+        "Nội dung đánh giá", value=examples[chosen], height=120,
+        placeholder="Nhập trải nghiệm mua hàng của bạn tại đây...", label_visibility="collapsed",
     )
 
-    if st.button("🔍 Dự đoán Rating", type="primary", use_container_width=True):
+    if st.button("🚀 Gửi Yêu Cầu Dự Đoán", type="primary", use_container_width=True):
         if not text.strip():
-            st.warning("Vui lòng nhập bình luận.")
+            st.warning("Vui lòng nhập nội dung đánh giá.")
         else:
-            result = predict_rating(text, active_model, vectorizer, selected_model_name)
-            if result is None:
-                st.warning("Bình luận trống sau khi xử lý.")
-            else:
-                rating = result["clipped_pred"]
-                color = rating_color(rating)
-                label = rating_label(rating)
-                stars = render_stars(rating)
+            with st.spinner("Đang chờ FastAPI phản hồi..."):
+                try:
+                    # GỌI API THAY VÌ CHẠY HÀM LOCAL
+                    payload = {"text": text, "model_type": selected_model_name}
+                    response = requests.post(API_URL, json=payload, timeout=5)
+                    response.raise_for_status()
 
-                # Hiển thị Điểm
-                st.markdown(
-                    f"""<div style='padding:30px;border-radius:12px;
-                    background-color:{color}15;border-left:6px solid {color};
-                    text-align:center;margin:15px 0;'>
-                    <div style='font-size:56px;color:{color};line-height:1;'>{rating:.2f}</div>
-                    <div style='font-size:13px;color:#666;margin-top:5px;'>trên 5.0</div>
-                    <div style='font-size:38px;color:{color};margin-top:12px;letter-spacing:4px;'>{stars}</div>
-                    <div style='font-size:18px;font-weight:bold;color:{color};margin-top:8px;'>{label}</div>
-                    </div>""",
-                    unsafe_allow_html=True,
-                )
+                    result = response.json()
 
-                # Detail metrics
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Raw prediction", f"{result['raw_pred']:.3f}")
-                c2.metric("Sau clipping [1,5]", f"{result['clipped_pred']:.3f}")
-                c3.metric("Làm tròn", f"{result['rounded']} ★")
+                    rating = result["clipped_prediction"]
+                    color = rating_color(rating)
+                    label = rating_label(rating)
+                    stars = render_stars(rating)
 
-                # Top features
-                if result["top_features"]:
-                    if selected_model_name == "Ridge":
-                        st.markdown("**Top từ khóa tác động đến điểm (Tích cực / Tiêu cực):**")
-                    else:
-                        st.markdown("**Top từ khóa được LightGBM chú ý nhất (Độ quan trọng):**")
-                        st.caption(
-                            "*(Lưu ý: LightGBM chỉ đánh giá mức độ quan trọng, không phân biệt từ đó mang ý nghĩa âm hay dương)*")
+                    st.markdown(
+                        f"""<div style='padding:20px; border-radius:8px; border: 1px solid #f9ecea;
+                        background-color:{SHOPEE_BG_LIGHT}; box-shadow: 0 1px 2px 0 rgba(0,0,0,.05);
+                        text-align:center; margin:15px 0;'>
+                        <div style='font-size:16px; color:{SHOPEE_TEXT_MUTED}; font-weight: 500; text-transform: uppercase;'>API Trả Về</div>
+                        <div style='font-size:64px; color:{SHOPEE_ORANGE}; line-height:1; font-weight: 700; margin-top: 10px;'>{rating:.1f}<span style='font-size: 24px; color: {SHOPEE_TEXT_MUTED}'> / 5</span></div>
+                        <div style='font-size:42px; color:{SHOPEE_ORANGE}; margin-top:5px; letter-spacing:2px;'>{stars}</div>
+                        <div style='font-size:20px; font-weight:600; color:{SHOPEE_TEXT_DARK}; margin-top:10px;'>{label}</div>
+                        </div>""",
+                        unsafe_allow_html=True,
+                    )
 
-                    fig, ax = plt.subplots(figsize=(8, 2.8))
-                    words = [w for w, _ in result["top_features"]]
-                    vals = [v for _, v in result["top_features"]]
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Dự đoán thô", f"{result['raw_prediction']:.2f}")
+                    c2.metric("Sau chuẩn hóa", f"{result['clipped_prediction']:.2f}")
+                    c3.metric("Sao hiển thị", f"{result['stars']} ⭐")
 
-                    # Set màu dựa theo mô hình
-                    if selected_model_name == "Ridge":
-                        colors = ["#2ca02c" if v > 0 else "#d62728" for v in vals]
-                    else:
-                        colors = ["#1f77b4" for _ in vals]  # LightGBM chỉ dùng 1 màu xanh dương
+                    with st.expander("🛠️ Văn bản đã lọc rác (Tiền xử lý tại Backend)"):
+                        st.info(f"`{result['processed_text']}`")
 
-                    ax.barh(words[::-1], vals[::-1], color=colors[::-1])
-                    if selected_model_name == "Ridge":
-                        ax.axvline(0, color="black", linewidth=0.5)
-                        ax.set_xlabel("Đóng góp vào rating (+/-)", fontsize=9)
-                    else:
-                        ax.set_xlabel("Mức độ quan trọng (Feature Importance)", fontsize=9)
-
-                    ax.tick_params(labelsize=9)
-                    plt.tight_layout()
-                    st.pyplot(fig)
-
-                with st.expander("Chi tiết kỹ thuật"):
-                    st.caption(f"**Văn bản sau xử lý:** `{result['processed']}`")
+                except requests.exceptions.ConnectionError:
+                    st.error(
+                        "❌ Không thể kết nối tới Backend. Hãy chắc chắn bạn đã chạy lệnh `uvicorn api:app --port 8000` ở một terminal khác.")
+                except Exception as e:
+                    st.error(f"❌ Lỗi API: {e}")
 
 # ============ TAB 2 - BATCH PREDICTION ============
 with tab2:
-    st.caption(f"Tải file CSV có cột **`Comment`** để dự đoán hàng loạt bằng **{selected_model_name}**.")
-    uploaded = st.file_uploader("CSV", type=["csv"], label_visibility="collapsed")
+    st.markdown("### Phân tích File CSV (Gửi API hàng loạt)")
+    st.write("Tải lên tệp danh sách đánh giá. Frontend sẽ gửi từng dòng lên FastAPI để xử lý.")
+    uploaded = st.file_uploader("Kéo thả file CSV vào đây", type=["csv"], label_visibility="collapsed")
 
     if uploaded:
         df = pd.read_csv(uploaded)
         if "Comment" not in df.columns:
-            st.error(f"Thiếu cột 'Comment'. Cột hiện có: {list(df.columns)}")
+            st.error("❌ Không tìm thấy cột 'Comment'.")
         else:
-            st.success(f"Đã tải {len(df):,} dòng.")
-            if st.button(f"🚀 Dự đoán bằng {selected_model_name}", type="primary", use_container_width=True):
-                with st.spinner(f"Đang dự đoán {len(df):,} bình luận..."):
+            st.success(f"✅ Đã tải thành công **{len(df):,}** đánh giá.")
+            if st.button(f"🚀 Bắt đầu gọi API ({selected_model_name})", type="primary", use_container_width=True):
+                with st.spinner("Đang giao tiếp với FastAPI..."):
                     progress = st.progress(0)
                     ratings = []
+
                     for i, c in enumerate(df["Comment"].fillna("").astype(str)):
-                        r = predict_rating(c, active_model, vectorizer, selected_model_name)
-                        ratings.append(r["clipped_pred"] if r else None)
-                        if i % 100 == 0:
-                            progress.progress(i / len(df))
+                        try:
+                            # Gọi API cho từng dòng
+                            payload = {"text": c, "model_type": selected_model_name}
+                            res = requests.post(API_URL, json=payload, timeout=5)
+                            if res.status_code == 200:
+                                ratings.append(res.json()["clipped_prediction"])
+                            else:
+                                ratings.append(None)
+                        except:
+                            ratings.append(None)
+
+                        if i % max(1, len(df) // 100) == 0:
+                            progress.progress(min(1.0, i / len(df)))
+
                     progress.progress(1.0)
 
                 df["Predicted_Rating"] = ratings
-                df["Predicted_Stars"] = [int(round(r)) if r else None for r in ratings]
-
+                df["Predicted_Stars"] = [int(round(r)) if pd.notnull(r) else None for r in ratings]
                 valid = df["Predicted_Rating"].dropna()
+
                 if len(valid) > 0:
+                    st.markdown("### Thống kê kết quả từ Backend")
                     c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("Trung bình", f"{valid.mean():.2f} ★")
-                    c2.metric("Trung vị", f"{valid.median():.2f} ★")
-                    c3.metric("Min", f"{valid.min():.2f}")
-                    c4.metric("Max", f"{valid.max():.2f}")
+                    c1.metric("Trung bình", f"{valid.mean():.2f} ⭐")
+                    c2.metric("Trung vị", f"{valid.median():.2f} ⭐")
+                    c3.metric("Thấp nhất", f"{valid.min():.2f}")
+                    c4.metric("Cao nhất", f"{valid.max():.2f}")
 
                     # Distribution Chart
-                    fig, ax = plt.subplots(figsize=(8, 3))
+                    fig, ax = plt.subplots(figsize=(8, 4))
                     star_counts = df["Predicted_Stars"].value_counts().sort_index()
-                    colors = {1: "#d62728", 2: "#FF8C00", 3: "#FFC72C", 4: "#7CB342", 5: "#2ca02c"}
-                    ax.bar(
-                        star_counts.index, star_counts.values,
-                        color=[colors.get(s, "#999") for s in star_counts.index],
-                        edgecolor="black",
-                    )
-                    ax.set_xlabel("Sao (làm tròn)")
-                    ax.set_ylabel("Số lượng")
-                    ax.set_xticks([1, 2, 3, 4, 5])
-                    ax.set_title(f"Phân bố rating dự đoán ({selected_model_name})")
-                    plt.tight_layout()
-                    st.pyplot(fig)
+                    for i in range(1, 6):
+                        if i not in star_counts: star_counts[i] = 0
+                    star_counts = star_counts.sort_index()
 
-                csv = df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+                    colors_map = {1: "#424242", 2: "#757575", 3: "#ffc107", 4: SHOPEE_ORANGE_LIGHT, 5: SHOPEE_ORANGE}
+                    ax.bar(star_counts.index, star_counts.values,
+                           color=[colors_map.get(s, "#999") for s in star_counts.index], edgecolor="white", width=0.6)
+                    ax.spines['top'].set_visible(False)
+                    ax.spines['right'].set_visible(False)
+                    ax.set_xticks([1, 2, 3, 4, 5])
+
+                    for i, v in enumerate(star_counts.values):
+                        ax.text(i + 1, v + (max(star_counts.values) * 0.02), str(v), ha='center',
+                                color=SHOPEE_TEXT_MUTED)
+
+                    st.pyplot(fig)
+                    plt.close(fig)
+
                 st.download_button(
-                    "💾 Tải kết quả CSV",
-                    csv,
-                    file_name=f"predictions_{selected_model_name}.csv",
+                    "📥 Tải Về Kết Quả (CSV)",
+                    df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig"),
+                    file_name=f"api_predictions.csv",
                     mime="text/csv",
                     use_container_width=True,
                 )
-
-# ============ TAB 3 - INTRO ============
+# ============ TAB 3 - CHI TIẾT MÔ HÌNH ============
 with tab3:
-    st.markdown(f"### Đang xem thông tin của: **{selected_model_name}**")
-    st.markdown(
-        f"""
-| Thuộc tính | Giá trị |
-|---|---|
-| **Loại bài toán** | Regression (hồi quy) |
-| **Mô hình** | {active_meta.get('model_type', selected_model_name)} |
-| **Đặc trưng** | TF-IDF (1-2 gram, max {active_meta['config']['max_features']:,}) |
-| **Vocabulary size** | {active_meta.get('vocab_size', 'N/A')} từ |
-| **Dataset** | {active_meta.get('n_train', 0) + active_meta.get('n_test', 0):,} reviews |
-| **MSE** | {active_meta.get('mse', 0):.4f} |
-| **RMSE** | {active_meta.get('rmse', 0):.4f} sao |
-| **MAE** | {active_meta.get('mae', 0):.4f} sao |
-| **R²** | {active_meta.get('r2', 0):.4f} |
-| **Accuracy ±0.5 sao** | {active_meta.get('acc_within_0_5', 0) * 100:.2f}% |
-| **Accuracy ±1.0 sao** | {active_meta.get('acc_within_1', 0) * 100:.2f}% |
-"""
-    )
+    st.markdown(f"### Thông số kỹ thuật: <span style='color:{SHOPEE_ORANGE}'>{selected_model_name}</span>",
+                unsafe_allow_html=True)
 
-# ----- FOOTER -----
-st.markdown("---")
-st.caption(
-    f"Mô hình đang chạy: {selected_model_name} · "
-    f"Test R²: **{active_meta.get('r2', 0):.3f}** · "
-    f"RMSE: **{active_meta.get('rmse', 0):.3f}** sao"
-)
+    try:
+        # Đọc trực tiếp file metadata JSON lưu thông số trong quá trình huấn luyện
+        import os, json
+
+        meta_path = os.path.join("models", f"rating_metadata_{selected_model_name.lower()}.json")
+
+        with open(meta_path, "r", encoding="utf-8") as f:
+            active_meta = json.load(f)
+
+        st.markdown(
+            f"""
+            <div style="background-color: white; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
+            <table style="width:100%; border-collapse: collapse;">
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 10px 0; color: #757575; font-weight: 500;">Độ phù hợp (R²)</td>
+                    <td style="padding: 10px 0; text-align: right; font-weight: 600;">{active_meta.get('r2', 0):.4f}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 10px 0; color: #757575; font-weight: 500;">Sai số bình phương (MSE)</td>
+                    <td style="padding: 10px 0; text-align: right; font-weight: 600;">{active_meta.get('mse', 0):.4f}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 10px 0; color: #757575; font-weight: 500;">Sai số chuẩn (RMSE)</td>
+                    <td style="padding: 10px 0; text-align: right; font-weight: 600;">{active_meta.get('rmse', 0):.4f} sao</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 10px 0; color: #757575; font-weight: 500;">Sai số tuyệt đối (MAE)</td>
+                    <td style="padding: 10px 0; text-align: right; font-weight: 600;">{active_meta.get('mae', 0):.4f} sao</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 10px 0; color: {SHOPEE_ORANGE}; font-weight: bold;">Chính xác (±0.5 sao)</td>
+                    <td style="padding: 10px 0; text-align: right; font-weight: bold; color: {SHOPEE_ORANGE};">{active_meta.get('acc_within_0_5', 0) * 100:.2f}%</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 0; color: {SHOPEE_ORANGE}; font-weight: bold;">Chính xác (±1.0 sao)</td>
+                    <td style="padding: 10px 0; text-align: right; font-weight: bold; color: {SHOPEE_ORANGE};">{active_meta.get('acc_within_1', 0) * 100:.2f}%</td>
+                </tr>
+            </table>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        # Tự động trích xuất và hiển thị các tham số thiết lập (nếu có trong key 'config')
+        if "config" in active_meta:
+            with st.expander("🔍 Xem thêm cấu hình tham số (Hyperparameters)"):
+                st.json(active_meta["config"])
+
+    except FileNotFoundError:
+        st.warning(
+            f"⚠️ Không tìm thấy file `{meta_path}`. Vui lòng đảm bảo bạn đã chạy file huấn luyện để sinh ra file này.")
+    except Exception as e:
+        st.error(f"❌ Có lỗi khi đọc thông số mô hình: {e}")
