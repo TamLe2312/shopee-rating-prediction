@@ -115,7 +115,7 @@ def clean_text(text: str) -> str:
 # ============================================================
 
 def main():
-    st.set_page_config(page_title="Text Cleaning", layout="wide")
+    st.set_page_config(page_title="Text Cleaning")
     
     st.title("Làm sạch văn bản (Text Cleaning)")
     st.markdown("---")

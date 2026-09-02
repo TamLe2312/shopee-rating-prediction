@@ -190,7 +190,7 @@ def replace_slang_in_dataframe(df: pd.DataFrame, slang_dict_df: pd.DataFrame, te
 # ============================================================
 
 def main():
-    st.set_page_config(page_title="Slang Mapping", layout="wide")
+    st.set_page_config(page_title="Slang Mapping")
     st.title("Slang Mapping")
     st.markdown("---")
 

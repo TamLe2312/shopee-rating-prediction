@@ -579,8 +579,7 @@ def get_statistics(
 def main():
 
     st.set_page_config(
-        page_title="Gemini Text Correction",
-        layout="wide"
+        page_title="Gemini Text Correction"
     )
 
     st.title(

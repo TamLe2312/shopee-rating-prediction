@@ -326,7 +326,7 @@ def remove_noise(df: pd.DataFrame, text_col="Comment"):
 # ============================================================
 
 def main():
-    st.set_page_config(page_title="Remove Noise", layout="wide")
+    st.set_page_config(page_title="Remove Noise")
     st.title("Remove Noise")
     st.markdown("---")
 

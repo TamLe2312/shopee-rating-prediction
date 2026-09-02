@@ -185,7 +185,7 @@ def process_dataframe(df: pd.DataFrame, progress_bar, status_text) -> pd.DataFra
 # MAIN - STREAMLIT
 # ============================================================
 def main():
-    st.set_page_config(page_title="Vietnamese Stopword Removal", layout="wide")
+    st.set_page_config(page_title="Vietnamese Stopword Removal")
     st.title("Xóa Stopword + Làm sạch dấu câu")
     st.markdown("---")
 

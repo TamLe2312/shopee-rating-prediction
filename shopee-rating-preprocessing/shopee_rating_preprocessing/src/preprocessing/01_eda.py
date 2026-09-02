@@ -189,7 +189,7 @@ def check_and_report_spam(df: pd.DataFrame, text_col: str = 'Comment', target_co
 
 def main():
     # Cấu hình hiển thị full layout màn hình
-    st.set_page_config(page_title="Khám phá dữ liệu EDA", layout="wide")
+    st.set_page_config(page_title="Khám phá dữ liệu EDA")
     
     st.title("Khám phá dữ liệu EDA")
     st.markdown("---")

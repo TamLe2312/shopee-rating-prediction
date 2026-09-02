@@ -621,8 +621,7 @@ def debug_emoji(
 
 def main():
     st.set_page_config(
-        page_title="Emoji Mapping",
-        layout="wide"
+        page_title="Emoji Mapping"
     )
 
     st.title("Emoji Mapping")

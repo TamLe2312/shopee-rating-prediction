@@ -216,7 +216,7 @@ def process_text(text: str) -> str:
 # MAIN - STREAMLIT
 # ============================================================
 def main():
-    st.set_page_config(page_title="Vietnamese Word Segmentation", layout="wide")
+    st.set_page_config(page_title="Vietnamese Word Segmentation")
     st.title("Tách từ tiếng Việt + Gắn từ phủ định")
     st.markdown("---")
 

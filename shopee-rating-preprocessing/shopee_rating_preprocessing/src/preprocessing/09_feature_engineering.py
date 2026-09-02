@@ -657,10 +657,7 @@ def main():
     global MULTICOL_THRESHOLD
     global VIF_THRESHOLD
 
-    st.set_page_config(
-        page_title="Feature Engineering & Selection",
-        layout="wide"
-    )
+    st.set_page_config(page_title="Feature Engineering & Selection")
 
     st.title(
         "Feature Engineering → Correlation → Multicollinearity"
